@@ -1,0 +1,12 @@
+# ABOUTME: Dependabot configuration for automated dependency updates
+# ABOUTME: Daily gomod checks surface new sendspin-go SDK releases as PRs
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
