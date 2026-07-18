@@ -1,33 +1,51 @@
-# ABOUTME: golangci-lint configuration for CI linting
+# ABOUTME: golangci-lint v2 configuration for CI linting
 # ABOUTME: Defines linters and rules for code quality checks
+version: "2"
 run:
-  timeout: 5m
   tests: true
-
 linters:
-  disable-all: true
+  default: none
   enable:
-    - gosimple
     - govet
     - ineffassign
-    - unused
-    - gofmt
-    - goimports
     - misspell
-
-linters-settings:
-  gocyclo:
-    min-complexity: 25
-
+    - staticcheck
+    - unused
+  settings:
+    gocyclo:
+      min-complexity: 25
+    staticcheck:
+      # S* only = the old gosimple linter. SA/ST/QF stay off, matching the
+      # pre-v2 config where staticcheck was intentionally not enabled.
+      checks:
+        - S*
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - gocyclo
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-use-default: true
   max-issues-per-linter: 50
   max-same-issues: 10
-
-  exclude-rules:
-    # Exclude linters from test files
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gocyclo
-        - dupl
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
