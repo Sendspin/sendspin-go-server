@@ -1,0 +1,163 @@
+# ABOUTME: Release workflow triggered by version tags
+# ABOUTME: Builds sendspin-server for Linux/macOS/Windows and creates GitHub release
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  GOFLAGS: -tags=nolibopusfile
+
+jobs:
+  test:
+    name: Test Before Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopus-dev libasound2-dev
+
+    # A release must never ship against an unpublished SDK.
+    - name: No replace directives
+      run: |
+        if grep -E '^replace ' go.mod; then
+          echo "::error::go.mod contains a replace directive — releases must depend on a tagged SDK"
+          exit 1
+        fi
+
+    - name: Run tests
+      run: go test -v -race ./...
+
+    - name: Lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+            ext: ""
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            ext: ""
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+            ext: ""
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+            ext: ".exe"
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopus-dev libasound2-dev
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'darwin'
+      run: brew install opus
+
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: false
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-pkg-config
+          mingw-w64-x86_64-opus
+
+    - name: Build (Unix)
+      if: matrix.os != 'windows'
+      env:
+        CGO_ENABLED: "1"
+      run: go build -o sendspin-server-${{ matrix.os }}-${{ matrix.arch }} .
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows'
+      shell: cmd
+      run: |
+        set PATH=D:\a\_temp\msys64\mingw64\bin;%PATH%
+        set CGO_ENABLED=1
+        set CC=gcc
+        go build -o sendspin-server-windows-amd64.exe .
+
+    - name: Package (Unix)
+      if: matrix.os != 'windows'
+      run: tar czf sendspin-server-${{ matrix.os }}-${{ matrix.arch }}.tar.gz sendspin-server-${{ matrix.os }}-${{ matrix.arch }}
+
+    - name: Package (Windows)
+      if: matrix.os == 'windows'
+      run: 7z a sendspin-server-windows-amd64.zip sendspin-server-windows-amd64.exe
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.os }}-${{ matrix.arch }}
+        path: |
+          sendspin-server-${{ matrix.os }}-${{ matrix.arch }}.*
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get version
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        pattern: release-*
+        merge-multiple: true
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.VERSION }}
+        name: ${{ steps.version.outputs.VERSION }}
+        body: |
+          ## sendspin-server ${{ steps.version.outputs.VERSION }}
+
+          Sendspin Protocol server binary. See the README for usage,
+          configuration, and daemon installation.
+        files: artifacts/*
