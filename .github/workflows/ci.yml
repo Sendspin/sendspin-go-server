@@ -1,0 +1,136 @@
+# ABOUTME: CI workflow for pull requests and main branch pushes
+# ABOUTME: Tests on Linux, builds sendspin-server on Linux/macOS/Windows
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Drop the libopusfile parts of gopkg.in/hraban/opus.v2 — the SDK never
+# calls the opus.Stream API, so the released binary shouldn't link libopusfile.
+env:
+  GOFLAGS: -tags=nolibopusfile
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopus-dev libasound2-dev
+
+    # The SDK must come from a published tag, never a local replace.
+    - name: No replace directives
+      run: |
+        if grep -E '^replace ' go.mod; then
+          echo "::error::go.mod contains a replace directive — CLI repos must depend on a tagged SDK release"
+          exit 1
+        fi
+
+    - name: Run tests
+      run: go test -v -race ./...
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopus-dev libasound2-dev shellcheck
+
+    - name: Shellcheck
+      run: shellcheck install-deps.sh
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+            ext: ""
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            ext: ""
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+            ext: ""
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+            ext: ".exe"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopus-dev libasound2-dev
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'darwin'
+      run: brew install opus
+
+    - name: Install dependencies (Windows)
+      if: matrix.os == 'windows'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: false
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-pkg-config
+          mingw-w64-x86_64-opus
+
+    - name: Build (Unix)
+      if: matrix.os != 'windows'
+      env:
+        CGO_ENABLED: "1"
+      run: go build -o sendspin-server-${{ matrix.os }}-${{ matrix.arch }} .
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows'
+      shell: cmd
+      run: |
+        set PATH=D:\a\_temp\msys64\mingw64\bin;%PATH%
+        set CGO_ENABLED=1
+        set CC=gcc
+        go build -o sendspin-server-windows-amd64.exe .
+
+    - name: Upload server
+      uses: actions/upload-artifact@v4
+      with:
+        name: sendspin-server-${{ matrix.os }}-${{ matrix.arch }}
+        path: sendspin-server-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}

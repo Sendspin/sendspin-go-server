@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Sendspin/sendspin-go/internal/server"
+	"github.com/Sendspin/sendspin-go-server/internal/server"
 	"github.com/Sendspin/sendspin-go/pkg/sendspin"
 )
 
