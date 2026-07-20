@@ -10,6 +10,19 @@ Looking for the player? See
 own integration? Import the [SDK](https://github.com/Sendspin/sendspin-go)
 directly.
 
+## Compatibility
+
+The upcoming version of this server moves to the Sendspin Protocol's
+mandatory **encrypted transport** (Noise `KKpsk2`, identities, and pairing).
+This is a **hard cutover**: it will **not** interoperate with legacy,
+pre-encryption Sendspin implementations. Both ends of a deployment must speak
+the encrypted protocol — for example an [`aiosendspin`](https://github.com/Sendspin/aiosendspin)
+7+ based Music Assistant provider and a matching player.
+
+If you need to keep talking to a legacy peer, stay on the current release
+line until every side of your setup has upgraded together. This repository's
+release notes will call out the version at which the cutover lands.
+
 ## Install
 
 Download a release tarball from the
