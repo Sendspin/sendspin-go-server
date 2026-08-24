@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
-	github.com/mewkiz/flac v1.0.13
+	github.com/mewkiz/flac v1.0.14
 )
 
 require (
