@@ -1,6 +1,6 @@
-![Unmaintained Banner](https://shields.io)
-
+> [!CAUTION]
 > **This library is currently unmaintained.** If you want to maintain it, please reach out here or on Discord.
+****
 
 
 # sendspin-server
