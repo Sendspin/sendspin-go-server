@@ -1,3 +1,8 @@
+![Unmaintained Banner](https://shields.io)
+
+> **This library is currently unmaintained.** If you want to maintain it, please reach out here or on Discord.
+
+
 # sendspin-server
 
 The Sendspin Protocol server CLI — streams synchronized multi-room audio to
